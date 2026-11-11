@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyse du vent · vent simplifié pour l'esquisse</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="topbar">
+  <div class="brand"><span class="logo">Analyse du vent</span>
+    <span class="tagline">Vent simplifié pour l'esquisse. Ce n'est ni une étude CFD ni une soufflerie : résultats approximatifs, à comparer entre variantes.</span>
+  </div>
+  <span class="topright"><span id="meteo-badge" class="badge meteo" title="Fichier météo (onglet Vent)">Météo : aucune</span>
+  <span id="calc-mini" class="badge" title="Calcul en cours : avancement et temps restant estimé"><span class="cm-bar"><span id="cm-fill"></span></span><span id="cm-txt">…</span></span>
+  <span id="gpu-temp" class="badge" hidden title="Carte graphique NVIDIA : température et charge (nvidia-smi, lu par le composant CL-WIND Live)">GPU</span>
+  <span id="engine-badge" class="badge">…</span></span>
+</header>
+
+<div id="app">
+  <aside id="panel">
+    <nav id="tabs" class="steps" aria-label="Étapes de travail">
+      <button data-tab="modele" class="on"><span class="sn">1</span><span class="sl">Modèle</span><span class="ss" title=""></span></button>
+      <button data-tab="meteo"><span class="sn">2</span><span class="sl">Météo</span><span class="ss" title=""></span></button>
+      <button data-tab="vent"><span class="sn">3</span><span class="sl">Vent</span><span class="ss" title=""></span></button>
+      <button data-tab="chaleur"><span class="sn">4</span><span class="sl">Soleil et chaleur</span><span class="ss" title=""></span></button>
+      <button data-tab="confort"><span class="sn">5</span><span class="sl">Confort</span><span class="ss" title=""></span></button>
+      <button data-tab="rendu"><span class="sn">6</span><span class="sl">Comparer et exporter</span><span class="ss" title=""></span></button>
+      <button data-tab="formes"><span class="sn">7</span><span class="sl">Forme de base</span><span class="ss" title=""></span></button>
+      <button data-tab="reglages" class="tab-set"><span class="sn">⚙</span><span class="sl">Réglages</span><span class="ss" title=""></span></button>
+    </nav>
+
+    <!-- ===================== 1. MODÈLE ===================== -->
+    <section class="tab" data-tab="modele">
+      <div class="step-head"><div class="step-title"><span class="sn">1</span> Modèle</div>
+        <p class="step-intro">Recevoir le refuge de Grasshopper, ou importer un plan, un modèle 3DM ou un site OpenStreetMap.</p>
+        <div class="step-views"><span>Voir</span><button data-go="view:plan">Plan</button><button data-go="view:soleil">Maquette au soleil</button></div>
+        <div class="step-check" data-check="modele"></div></div>
+
+      <details id="live-section" hidden open><summary>Liaison Grasshopper</summary>
+        <div id="live-status" class="status"></div>
+        <label class="check"><input type="checkbox" id="live-follow" checked> Suivre Grasshopper</label>
+        <div class="btns"><button id="live-center">Recentrer</button></div>
+        <div class="hint">La scène suit la définition Grasshopper à chaque recalcul ; le calcul repart de zéro à chaque changement.
+          Les objets reçus sont remplacés à chaque envoi : modifiez-les dans Grasshopper, pas ici. Attendez « Moyenne stabilisée » avant de comparer.</div>
+      </details>
+
+      <details><summary>Importer un plan ou un modèle</summary>
+        <input type="file" id="imp-file" accept=".dxf,.geojson,.json,.glb,.3dm">
+        <div class="hint">DXF ASCII, GeoJSON, GLB non compressé, Rhino 3DM (volumes, briques et lames en 3D, comme la liaison Grasshopper).</div>
+        <div id="imp-options"></div>
+        <div id="imp-status" class="status"></div>
+      </details>
+
+      <details><summary>Site, OpenStreetMap</summary>
+        <label class="row">Adresse ou coordonnées
+          <input type="text" id="osm-query" placeholder="ex. place Royale, Nantes  ou  47.2133, -1.5593"></label>
+        <label class="row">Rayon <span class="pair"><input type="number" id="osm-radius" min="80" max="400" step="10" value="200"> m</span></label>
+        <button id="osm-go" class="primary">Importer le site</button>
+        <div id="osm-status" class="status"></div>
+      </details>
+      <button class="step-next" data-next="meteo">Étape suivante : 2. Météo →</button>
+    </section>
+
+    <!-- ===================== 2. MÉTÉO ===================== -->
+    <section class="tab" data-tab="meteo" hidden>
+      <div class="step-head"><div class="step-title"><span class="sn">2</span> Météo</div>
+        <p class="step-intro">Charger le fichier météo du site (EPW) : il donne le vent, le soleil et les températures de toute l'année. Cliquer sur un secteur de la rose applique sa direction et sa vitesse.</p>
+        <div class="step-check" data-check="meteo"></div></div>
+
+      <details open><summary>Vent du site, fichier EPW</summary>
+        <input type="file" id="epw-file" accept=".epw">
+        <div id="epw-info" class="status"></div>
+        <div id="epw-controls" hidden>
+          <label class="row">Saison <select id="epw-season">
+            <option value="all">Toute l'année</option><option value="djf">Hiver (déc. à fév.)</option>
+            <option value="mam">Printemps (mars à mai)</option><option value="jja">Été (juin à août)</option>
+            <option value="son">Automne (sept. à nov.)</option></select></label>
+          <label class="row">Heures <select id="epw-hours">
+            <option value="all">Jour et nuit</option><option value="day">Jour, 8 h à 20 h</option><option value="night">Nuit</option></select></label>
+          <label class="row">Vitesse appliquée <select id="epw-stat">
+            <option value="mean">Moyenne du secteur</option><option value="p90">Dépassée 10 % du temps</option></select></label>
+          <label class="row">Environnement <select id="epw-alpha">
+            <option value="0.14">Dégagé (α = 0,14)</option><option value="0.18">Campagne (α = 0,18)</option>
+            <option value="0.25" selected>Périurbain (α = 0,25)</option><option value="0.33">Ville dense (α = 0,33)</option></select></label>
+          <canvas id="epw-rose" width="300" height="300"></canvas>
+          <div id="epw-sector" class="hint">Cliquez sur un secteur pour appliquer sa direction et sa vitesse.</div>
+        </div>
+        <div class="hint">Fichiers EPW gratuits : climate.onebuilding.org, energyplus.net. Vitesse ramenée de 10 m à 1,5 m par une loi de puissance.</div>
+      </details>
+
+      <details open><summary>Vent</summary>
+        <label class="row">Vitesse de référence
+          <span class="pair"><input type="range" id="w-speed-r" min="0.5" max="20" step="0.5" value="5">
+          <input type="number" id="w-speed" min="0.5" max="20" step="0.1" value="5"> m/s</span></label>
+        <label class="row">Direction « venant de »
+          <span class="pair"><input type="range" id="w-dir-r" min="0" max="359" step="1" value="270">
+          <input type="number" id="w-dir" min="0" max="359" step="1" value="270"> °</span></label>
+        <div class="hint">Vent venant de l'<b id="w-dir-name">ouest</b>. 0 = nord, 90 = est. Vitesse à hauteur de piéton (1,5 m).</div>
+      </details>
+      <button class="step-next" data-next="vent">Étape suivante : 3. Vent →</button>
+    </section>
+
+    <!-- ===================== 3. VENT ===================== -->
+    <section class="tab" data-tab="vent" hidden>
+      <div class="step-head"><div class="step-title"><span class="sn">3</span> Vent</div>
+        <p class="step-intro">Choisir le calcul (plan 2D rapide, ou 3D pour les toits et la hauteur), puis attendre « Moyenne stabilisée » dans la colonne de droite avant de lire le résultat.</p>
+        <div class="step-views"><span>Voir</span><button data-go="mode:speed">Vitesse</button><button data-go="mode:ratio">Rapport</button><button data-go="mode:comfort">Confort</button><button data-go="view:both">Plan + coupe</button><button data-go="view:3d">3D</button><button data-go="tool:probe" class="go-probe" title="Outil Sonde (P) : cliquez un point du plan ou de la coupe">Sonde P</button></div>
+        <div class="step-check" data-check="vent"></div></div>
+
+      <div class="step-goto"><span>Domaine de calcul, plan 2D ou 3D, finesse : tout est dans l'onglet</span> <button data-goto="reglages">⚙ Réglages</button></div>
+      <button class="step-next" data-next="chaleur">Étape suivante : 4. Soleil et chaleur →</button>
+    </section>
+
+    <!-- ===================== 4. SOLEIL ET CHALEUR ===================== -->
+    <section class="tab" data-tab="chaleur" hidden>
+      <div class="step-head"><div class="step-title"><span class="sn">4</span> Soleil et chaleur</div>
+        <p class="step-intro">Choisir le jour et l'heure, régler la paroi, le sol, le toit et l'eau : la courbe « Chaleur sur 24 h » à droite suit chaque réglage.</p>
+        <div class="step-views"><span>Voir</span><button data-go="view:soleil">Ombres</button><button data-go="mode:temp">Température</button><button data-go="mode:feel">Ressenti</button><button data-go="tool:probe" class="go-probe" title="Outil Sonde (P) : cliquez un point du plan ou de la coupe">Sonde P</button></div>
+        <div class="step-check" data-check="chaleur"></div></div>
+
+      <details open><summary>Date et heure</summary>
+        <div id="sun-presets" class="presets"></div>
+        <label class="row">Date <span class="pair"><input type="number" id="sun-d" min="1" max="31" step="1" value="21" style="width:56px">
+          <select id="sun-m"></select></span></label>
+        <label class="check" title="Au changement de jour, le vent du calcul prend la direction (moyenne vectorielle) et la vitesse moyennes de ce jour dans le fichier météo, ramenées à 1,5 m. Le vent envoyé par Grasshopper est alors ignoré."><input type="checkbox" id="sun-daywind" checked> Vent du jour (moyenne du fichier météo)</label>
+        <div id="sun-daywind-info" class="hint"></div>
+        <label class="row">Heure (heure d'hiver UTC + 1, sans l'heure d'été)
+          <span class="pair"><input type="range" id="sun-t" min="0" max="24" step="0.25" value="13"> <output id="sun-t-o"></output></span></label>
+        <div class="btns"><button id="sun-play">▶ Animer la journée</button></div>
+        <div id="sun-info" class="status"></div>
+        <div class="hint">La même date et la même heure pilotent le soleil, les ombres, la coupe solaire et les températures. Jours les plus chaud et froid, été et hiver types : tirés du fichier EPW.</div>
+      </details>
+
+      <details open><summary>Vue Soleil</summary>
+        <label class="row">Coupe solaire <select id="sun-cut">
+          <option value="ns">Sud → nord (rayons de midi exacts)</option><option value="sun">Dans l'axe du soleil (suit le soleil, hauteur vraie à chaque heure)</option><option value="fixe">Fixe : azimut choisi (ne bouge pas)</option><option value="trait">Trait de coupe (outil C, vue Plan)</option></select></label>
+        <label class="check"><input type="checkbox" id="sun-paths" checked> Solstices et équinoxes (courses et rayons de midi)</label>
+        <div class="hint">Bouton <b>Soleil</b> de la barre d'outils : modèle seul sur un sol, ombres portées, course du soleil, et en bas la coupe avec les rayons. Glisser : tourner, clic droit : déplacer, molette : zoom, double clic : recadrer.</div>
+      </details>
+
+      <details open><summary>Chaleur : paroi et eau</summary>
+        <div class="row">Paroi : terre cuite absorbante (briques et lames) <select id="th-mat" hidden></select></div>
+        <label class="row" title="Matériau du sol sous le refuge : absorption du soleil, émissivité, masse, arrosage">Sol intérieur <select id="th-floor"></select></label>
+        <div id="th-floorinfo" class="hint"></div>
+        <label class="row" title="Toit : absorption du dessus, chaleur transmise à la sous-face, émissivité de la sous-face">Toit <select id="th-roof"></select></label>
+        <div id="th-roofinfo" class="hint"></div>
+        <div id="th-matinfo" class="hint"></div>
+        <label class="row">Épaisseur des briques <span class="pair"><input type="number" id="th-ep" min="2" max="60" step="1" value="11"> cm</span></label>
+        <label class="check" title="Un petit débit d'eau ruisselle sur les tuiles ; la brique absorbante s'en imbibe ; l'eau non évaporée retourne aux cuves"><input type="checkbox" id="th-drip"> Goutte-à-goutte qui ruisselle sur les tuiles</label>
+        <label class="row" title="Horaires fixes, ou sonde de température et d'humidité à l'ombre (planche 05 du kiosque)">Pilotage <select id="th-dripMode"><option value="heures">horaires</option><option value="sonde">sonde T / HR</option></select></label>
+        <label class="row">sonde : marche au-dessus de <span class="pair"><input type="number" id="th-dripTon" min="10" max="40" step="1" value="26"> °C et sous <input type="number" id="th-dripRH" min="20" max="100" step="5" value="65"> %, arrêt sous <input type="number" id="th-dripToff" min="5" max="35" step="1" value="22"> °C ou par pluie</span></label>
+        <label class="row">de <span class="pair"><input type="number" id="th-dripA" min="0" max="24" step="1" value="11"> h à <input type="number" id="th-dripB" min="0" max="24" step="1" value="19"> h</span></label>
+        <div hidden><label class="check"><input type="checkbox" id="th-mist"> Brumisation de l'air entrant</label>
+        <label class="row">efficacité <span class="pair"><input type="number" id="th-mistEff" min="0" max="95" step="5" value="60"> % · de <input type="number" id="th-mistA" min="0" max="24" step="1" value="11"> h à <input type="number" id="th-mistB" min="0" max="24" step="1" value="19"> h</span></label>
+        <label class="row">débit des buses <span class="pair"><input type="number" id="th-mistMax" min="0" max="2000" step="5" value="40"> L/h</span></label>
+        <label class="row">brume arrêtée au-delà de <span class="pair"><input type="number" id="th-mistRH" min="30" max="100" step="5" value="70"> % d'humidité</span></label></div>
+        <label class="row">Réservoir <span class="pair"><input type="number" id="th-tank" min="0" step="0.5" placeholder="auto"> m³ · collecte <input type="number" id="th-catch" min="0" step="1" placeholder="auto"> m²</span></label>
+        <label class="row" title="Surface d'eau libre des cuves sous la grille : environ 8 m² pour les 11 cuves de V1.gh">Eau libre des cuves <span class="pair"><input type="number" id="th-wsurf" min="0" step="0.5" value="8"> m²</span></label>
+        <div id="th-geo" class="hint"></div>
+        <div class="hint">Goutte-à-goutte : un petit débit ruisselle sur les tuiles ; la brique absorbante s'en imbibe, puis se refroidit en s'évaporant (limité par l'humidité de l'air). L'eau non évaporée retourne aux cuves. Renouvellement d'air : celui du calcul du vent (bilan).</div>
+      </details>
+      <button class="step-next" data-next="confort">Étape suivante : 5. Confort →</button>
+    </section>
+
+    <!-- ===================== 5. CONFORT ===================== -->
+    <section class="tab" data-tab="confort" hidden>
+      <div class="step-head"><div class="step-title"><span class="sn">5</span> Confort</div>
+        <p class="step-intro">Confort sur l'année (UTCI été et hiver, vent réel) et épisodes mesurés de canicule ou de grand froid. Les calculs prennent quelques minutes.</p>
+        <div class="step-views"><span>Voir</span><button data-go="mode:utci">UTCI</button><button data-go="mode:feel">Ressenti</button><button data-go="tool:probe" class="go-probe" title="Outil Sonde (P) : cliquez un point du plan ou de la coupe">Sonde P</button></div>
+        <div class="step-check" data-check="confort"></div></div>
+
+      <details open id="th-utci-section"><summary>Confort UTCI : été et hiver, vent réel</summary>
+        <label class="row" title="Lames, capot, panneaux : la géométrie peut changer avec la saison. Balayez avec la géométrie d'été pour l'été, celle d'hiver pour l'hiver.">Géométrie balayée <select id="th-sweep-which"><option value="all">toute l'année</option><option value="ete">été (juin à septembre)</option><option value="hiver">hiver (décembre à février)</option></select></label>
+        <div class="btns"><button id="th-sweep-run" title="Calcule le vent sur 16 directions (moyenne stabilisée pour chacune) : quelques minutes">1. Balayer les vents (16 directions)</button></div>
+        <div id="th-sweep-msg" class="hint"></div>
+        <label class="check"><input type="checkbox" id="th-useWindTable" checked> Vent réel heure par heure (direction et vitesse du fichier météo)</label>
+        <div class="btns"><button id="th-utci-run">2. Calculer l'UTCI été et hiver</button></div>
+        <canvas id="th-utci" title="Heures par classe de stress thermique UTCI, dehors au soleil et dedans"></canvas>
+        <div id="th-utci-sum" class="hint"></div>
+      </details>
+
+      <details open id="ep-section"><summary>Canicules et grands froids : mesures de l'atlas</summary>
+        <div class="btns"><button id="ep-load" title="Mesures horaires Météo-France de l'atlas du site (station Nantes-Bouguenais), lues par le composant CL-WIND Live">Charger les mesures de l'atlas</button> <button id="ep-typical" title="Revenir au fichier EPW (année type)">Année type</button></div>
+        <label class="row">ou le fichier <input type="file" id="ep-file" accept=".csv" title="data/meteo/meteofrance_44020001_horaire.csv de l'atlas"></label>
+        <div id="ep-info" class="status"></div>
+        <div id="ep-controls" hidden>
+          <label class="row">Épisodes <select id="ep-kind">
+            <option value="canicule">Canicules (Météo-France 44)</option><option value="chaleur">Vagues de chaleur</option>
+            <option value="froid">Grands froids</option><option value="froid2">Vagues de froid</option></select></label>
+          <label class="row">Seuils sur 3 jours <span class="pair">min <input type="number" id="ep-sn" step="0.5" style="width:4.5em"> max <input type="number" id="ep-sx" step="0.5" style="width:4.5em"> °C</span></label>
+          <div id="ep-note" class="hint"></div>
+          <select id="ep-list" size="6"></select>
+          <div class="btns"><button id="ep-run">Analyser l'épisode</button></div>
+          <canvas id="ep-chart" title="Air et UTCI dehors et dedans, heure par heure ; fond coloré : jours de l'épisode"></canvas>
+          <div id="ep-sum" class="hint"></div>
+          <div class="hint">L'épisode tourne sur les mesures réelles (température, humidité, vent, rayonnement), avec la géométrie de sa saison si Grasshopper a envoyé l'été et l'hiver (bouton SAISON). La météo de toute l'application devient l'année réelle autour de l'épisode : « Année type » pour revenir au fichier EPW.</div>
+        </div>
+      </details>
+      <button class="step-next" data-next="rendu">Étape suivante : 6. Comparer et exporter →</button>
+    </section>
+
+    <!-- ===================== 6. COMPARER ET EXPORTER ===================== -->
+    <section class="tab" data-tab="rendu" hidden>
+      <div class="step-head"><div class="step-title"><span class="sn">6</span> Comparer et exporter</div>
+        <p class="step-intro">Mémoriser des variantes, en choisir une comme référence pour l'affichage « Écart », puis sortir les planches.</p>
+        <div class="step-views"><span>Voir</span><button data-go="mode:diff">Écart</button><button data-go="mode:speed">Vitesse</button></div>
+        <div class="step-check" data-check="rendu"></div></div>
+
+      <details open id="var-section"><summary>Variantes</summary>
+        <div class="btns"><button id="var-save">Mémoriser cette variante</button></div>
+        <div id="var-list" class="hint">Aucune variante mémorisée.</div>
+        <div class="hint">Une variante garde le champ affiché et le bilan. Choisissez-en une comme référence, puis l'affichage « Écart » montre la différence de vitesse (même domaine et même grille). Les variantes sont perdues si la page est rechargée : exportez la planche avant.</div>
+      </details>
+
+      <details open><summary>Planche et images</summary>
+        <label class="row">Titre de la planche <input type="text" id="exp-title" placeholder="Refuge climatique urbain, variante lames été"></label>
+        <button id="exp-a3" class="primary">Planche A3 (PNG)</button>
+        <button id="exp-a3sun" class="primary">Planche A3 soleil et chaleur</button>
+        <button id="exp-full" class="primary" title="A2 paysage, 150 dpi : cartes vitesse, température, ressenti et UTCI recadrées sur l'ouvrage, soleil, courbes 24 h, UTCI été et hiver, bilan du vent, synthèse, été, limites">Planche d'analyse complète (A2)</button>
+        <div class="hint">Plan, coupe verticale, bilan, rose, profil selon la hauteur, légende, échelle, nord, vent et limites du modèle.</div>
+        <div class="btns"><button id="exp-png">Image PNG</button><button id="exp-dxf">Plan DXF (mm)</button></div>
+        <div id="exp-status" class="status"></div>
+      </details>
+    </section>
+    <!-- ===================== 7. FORME DE BASE ===================== -->
+    <section class="tab" data-tab="formes" hidden>
+      <div class="step-head"><div class="step-title"><span class="sn">7</span> Forme de base</div>
+        <p class="step-intro">Dessiner et modifier des formes simples dans le plan : bâtiments, murs, arbres, coupe et sonde. Les objets reçus de Grasshopper se modifient dans Grasshopper.</p></div>
+
+      <details open><summary>Dessiner et modifier</summary>
+        <div class="tool-grid">
+          <button data-go="tool:select" data-tool-mirror="select" title="Sélection (S)">Sélection <kbd>S</kbd></button>
+          <button data-go="tool:rect" data-tool-mirror="rect" title="Bâtiment rectangulaire (R)">Rectangle <kbd>R</kbd></button>
+          <button data-go="tool:poly" data-tool-mirror="poly" title="Bâtiment polygonal (B)">Bâtiment <kbd>B</kbd></button>
+          <button data-go="tool:tree" data-tool-mirror="tree" title="Arbre (T)">Arbre <kbd>T</kbd></button>
+          <button data-go="tool:wall" data-tool-mirror="wall" title="Mur (W)">Mur <kbd>W</kbd></button>
+        </div>
+      </details>
+
+      <details open><summary>Analyser</summary>
+        <div class="tool-grid">
+          <button data-go="tool:cut" data-tool-mirror="cut" title="Tracer la coupe verticale (C)">Coupe <kbd>C</kbd></button>
+          <button data-go="tool:probe" data-tool-mirror="probe" title="Sonde P (P) : un point repéré dans le plan, la coupe et la 3D">Sonde P <kbd>P</kbd></button>
+        </div>
+      </details>
+
+      <details open><summary>Éditer</summary>
+        <div class="tool-grid">
+          <button data-click="t-undo" title="Annuler (Ctrl+Z)">Annuler <kbd>Ctrl+Z</kbd></button>
+          <button data-click="t-del" title="Supprimer l'objet sélectionné (Suppr)">Supprimer <kbd>Suppr</kbd></button>
+          <button data-click="t-fit" title="Cadrer le plan (F)">Cadrer <kbd>F</kbd></button>
+        </div>
+      </details>
+
+      <details open id="sel-section"><summary>Sélection</summary>
+        <div id="sel-body" class="hint">Aucun objet sélectionné.</div>
+      </details>
+    </section>
+
+    <!-- ===================== RÉGLAGES ===================== -->
+    <section class="tab" data-tab="reglages" hidden>
+      <div class="step-head"><div class="step-title"><span class="sn">⚙</span> Réglages</div>
+        <p class="step-intro">Tous les réglages du calcul au même endroit : domaine, plan 2D ou 3D, finesse, écrans poreux, et la zone où le ressenti et l'UTCI sont calculés.</p></div>
+
+      <details open><summary>Domaine et méthode</summary>
+        <label class="row">Largeur × hauteur
+          <span class="pair"><input type="number" id="d-w" min="10" max="1500" step="5" value="450"> ×
+          <input type="number" id="d-h" min="10" max="1500" step="5" value="350"> m</span></label>
+        <label class="row">Calcul <select id="d-dim">
+          <option value="2d" selected>Plan 2D (hauteur de coupe seule)</option><option value="3d">3D (hauteur réelle, toits, sol)</option></select></label>
+        <div id="d-3d" hidden>
+          <label class="row">Finesse 3D <select id="d-res3d">
+            <option value="0">Aperçu, 2 M cellules</option><option value="1" selected>Normale, 7 M cellules</option><option value="2">Fine, 20 M cellules (carte dédiée)</option></select></label>
+          <label class="row" title="Hauteur du domaine de calcul 3D, donc de la vue 3D et des lignes de courant. 0 = automatique : 3 fois l'objet le plus haut (10 m au moins). Plus bas = cellules plus fines pour le même nombre de cellules ; jamais moins que l'objet le plus haut + 1 m.">Hauteur max du domaine 3D (vent)
+            <span class="pair"><input type="number" id="d-h3d" min="0" max="300" step="1" value="0"> m <span class="hint" style="margin:0">0 = auto</span></span></label>
+          <label class="row">Hauteur de la coupe affichée
+            <span class="pair"><input type="range" id="d-cut-r" min="0.1" max="10" step="0.1" value="1.5">
+            <input type="number" id="d-cut" min="0.1" max="50" step="0.1" value="1.5"> m</span></label>
+          <div class="hint">Coupe horizontale sur le plan, coupe verticale le long du trait (outil Coupe) en bas de la vue. Changer la hauteur de coupe ne relance pas le calcul. Briques et lames : bande poreuse mesurée couche par couche.</div>
+        </div>
+        <div id="d-2d">
+        <label class="row">Résolution <select id="d-res">
+          <option value="0">Rapide</option><option value="1" selected>Normale</option><option value="2">Fine</option>
+          <option value="3">Très fine, 1024 (lent)</option><option value="4">Détail, 1536 (très lent)</option><option value="5">Détail max, 2048 (carte puissante)</option><option value="6">Ultra, 3072 (carte dédiée)</option></select></label>
+        <label class="row">Briques, lames (écrans) <select id="d-scr">
+          <option value="auto" selected>Automatique</option><option value="porous">Bande poreuse</option><option value="solid">Éléments pleins résolus</option></select></label>
+        </div>
+        <div id="d-info" class="hint"></div>
+        <div id="d-warn"></div>
+      </details>
+
+      <p class="foot">Vent moyen sans rafales. En 2D : écoulement en plan à une hauteur. En 3D : hauteur réelle, sol glissant, turbulence d'entrée 20 %. Lire le résultat au centre du domaine.</p>
+
+      <details open><summary>Ressenti et UTCI</summary>
+        <label class="row" title="Côté du carré, centré sur l'ouvrage, où le ressenti et l'UTCI sont calculés et affichés (0 = toute la zone autour de l'ouvrage)">Zone Ressenti / UTCI <span><input type="number" id="th-mapZone" min="0" max="500" step="1" value="10" style="width:5em"> m</span></label>
+        <div class="hint">Carré centré sur l'ouvrage : plus petit = calcul plus rapide et plus fin autour du refuge ; 0 = toute la zone autour de l'ouvrage.</div>
+      </details>
+    </section>
+  </aside>
+
+  <main id="stage">
+    <div id="toolbar">
+      <!-- outils de dessin et d'édition regroupés dans le menu « Forme de base » (raccourcis clavier inchangés), en tête de barre pour rester visible -->
+      <button id="tb-forms-btn" class="tb-menu-btn" aria-haspopup="true" aria-expanded="false" title="Formes de base : sélection, dessin, coupe, sonde, annuler, supprimer">Forme de base : <b id="tb-forms-cur">Sélection</b> ▾</button>
+      <div id="tb-forms" class="tb-pop" hidden>
+        <div class="tb-pop-lab">Dessiner et modifier</div>
+        <button data-tool="select" class="on" title="Sélection (S)">Sélection <kbd>S</kbd></button>
+        <button data-tool="rect" title="Rectangle (R)">Rectangle <kbd>R</kbd></button>
+        <button data-tool="poly" title="Bâtiment polygonal (B)">Bâtiment <kbd>B</kbd></button>
+        <button data-tool="tree" title="Arbre (T)">Arbre <kbd>T</kbd></button>
+        <button data-tool="wall" title="Mur (W)">Mur <kbd>W</kbd></button>
+        <div class="tb-pop-lab">Analyser</div>
+        <button data-tool="cut" title="Tracer la coupe verticale (C)">Coupe <kbd>C</kbd></button>
+        <button data-tool="probe" title="Sonde P (P) : cliquez un point du plan ou de la coupe ; il est repéré dans toutes les vues et ses valeurs restent affichées">Sonde <kbd>P</kbd></button>
+        <div class="tb-pop-lab">Éditer</div>
+        <button id="t-undo" title="Annuler (Ctrl+Z)">Annuler <kbd>Ctrl+Z</kbd></button>
+        <button id="t-del" title="Supprimer (Suppr)">Supprimer <kbd>Suppr</kbd></button>
+      </div>
+      <span class="sep"></span>
+      <div class="seg" id="view-mode">
+        <button data-view="plan" class="on" title="Plan seul">Plan</button>
+        <button data-view="coupe" title="Coupe verticale seule, le long du trait (outil Coupe)">Coupe</button>
+        <button data-view="both" title="Plan en haut, coupe en bas">Plan + coupe</button>
+        <button data-view="cote" title="Plan à gauche, coupe à droite">Plan | coupe</button>
+        <button data-view="3d" title="Vue 3D en orbite (calcul 3D)">3D</button>
+        <button data-view="soleil" title="Modèle seul sur un sol : ombres, course du soleil, coupe avec les rayons">Soleil</button>
+        <button data-view="zoom" title="Zoom 3D sur un pan de mur, au centimètre : l'air dans les joints entre les briques">Zoom mur</button>
+      </div>
+      <span class="sep"></span>
+      <button id="t-fit" title="Cadrer (F)">Cadrer <kbd>F</kbd></button>
+      <span id="tool-hint"></span>
+    </div>
+    <div id="viewbar" title="Vues enregistrées : clic pour rappeler, double clic pour renommer, touches 1 à 9">
+      <span class="vb-lab">Vues</span><span id="vb-list"></span>
+      <button id="vb-add" title="Enregistrer la disposition, les grandeurs affichées, la coupe et l'heure actuelles">+ Enregistrer la vue</button>
+    </div>
+    <div id="view">
+      <canvas id="plan"></canvas>
+      <div id="plan-head" class="panel-head"><label>Plan <select id="plan-disp">
+        <option value="speed">Vitesse</option><option value="ratio">Rapport</option><option value="comfort">Confort</option><option value="diff">Écart</option>
+        <option value="temp">Température</option><option value="feel">Ressenti</option><option value="utci">UTCI</option></select></label></div>
+      <div id="pause-note" hidden></div>
+      <canvas id="view3d" hidden></canvas>
+      <div id="v3d-head" class="panel-head v3-head" hidden>
+        <label title="Coupe horizontale colorée à la hauteur choisie"><input type="checkbox" id="v3-h" checked> Coupe horizontale <select id="v3-hdisp">
+          <option value="speed">Vitesse</option><option value="ratio">Rapport</option><option value="comfort">Confort</option><option value="temp">Température</option><option value="feel">Ressenti</option><option value="utci">UTCI</option></select>
+          à <input type="number" id="v3-z" min="0.1" max="50" step="0.1" value="1.5" style="width:4em"> m</label>
+        <label title="Coupe verticale le long du trait (outil Coupe)"><input type="checkbox" id="v3-v" checked> Coupe verticale <select id="v3-vdisp"><option value="suit">comme l'horizontale</option><option value="speed">Vitesse</option><option value="comfort">Confort</option><option value="temp">Température</option></select></label>
+        <label title="Retire le côté de la maquette qui est devant le plan de coupe verticale : le refuge se lit comme une vraie coupe"><input type="checkbox" id="v3-o" checked> Ouvrir la coupe</label>
+        <label title="Lignes de courant du vent moyen, couleur selon la vitesse"><input type="checkbox" id="v3-l" checked> Vent</label>
+        <label>Maquette <select id="v3-m"><option value="plein">pleine</option><option value="transp">transparente</option><option value="aucune">masquée</option></select></label>
+      </div>
+      <div id="v3d-hint" class="overlay-hint" hidden></div>
+      <div id="vcut-wrap" hidden><div id="vcut-grip" title="Glisser pour agrandir ou réduire la coupe"></div><canvas id="vcut"></canvas>
+        <div id="vcut-head" class="panel-head"><label>Coupe <select id="vcut-disp"><option value="suit">comme le plan</option><option value="speed">Vitesse</option><option value="comfort">Confort</option><option value="temp">Température</option></select></label></div><div id="vcut-note" hidden>Calcul en plan 2D : une seule hauteur, donc pas de coupe en couleur. Ce graphique donne la vitesse le long du trait A → B. <button id="vcut-3d" class="primary">Passer en calcul 3D</button></div></div>
+      <div id="sun-wrap" hidden><canvas id="sun3d"></canvas><canvas id="sun-lab"></canvas>
+        <div id="sun-bar"><button id="sunb-prev" title="Jour précédent">◀</button><button id="sunb-play" title="Animer la journée">▶</button><button id="sunb-next" title="Jour suivant">▶▶</button>
+          <span id="sunb-date"></span><input type="range" id="sunb-t" min="0" max="24" step="0.0833" value="13">
+          <span class="seg" id="sunb-cut" title="Coupe solaire en bas de la vue"><button data-c="sun" title="La coupe tourne avec le soleil : elle reste dans son axe">☀ suit le soleil</button><button data-c="fixe" title="La coupe garde son orientation quand le soleil bouge">📌 fixe</button></span>
+          <label id="sunb-az-l" hidden title="Direction de la coupe : 0 = nord, 90 = est, 180 = sud (la coupe va de cet azimut vers l'opposé)">azimut <input type="number" id="sunb-az" min="0" max="359" step="5" value="180" style="width:4em">°</label></div>
+        <div id="sun-quick" title="Accès rapide">
+          <span class="lab">Face</span><button data-q="face-S" title="Vue de face depuis le sud">Sud</button><button data-q="face-N" title="Vue de face depuis le nord">Nord</button><button data-q="face-E" title="Vue de face depuis l'est">Est</button><button data-q="face-O" title="Vue de face depuis l'ouest">Ouest</button>
+          <span class="lab">Coupe</span><button data-q="cut-ns" title="Coupe sud → nord par le centre du bâtiment">Sud-Nord</button><button data-q="cut-eo" title="Coupe est → ouest par le centre du bâtiment">Est-Ouest</button>
+        </div>
+        <canvas id="suncut" title="Molette : zoom · glisser : déplacer · double clic : coupe entière"></canvas>
+        <div id="suncut-bar">
+          <span class="lab">Échelle</span>
+          <select id="suncut-scale" title="Échelle à l'écran (96 points par pouce) et dans l'image exportée">
+            <option value="fit">ajustée</option><option value="20">1/20</option><option value="50">1/50</option><option value="100">1/100</option><option value="200">1/200</option><option value="500">1/500</option><option value="libre" hidden>libre</option>
+          </select>
+          <span id="suncut-scale-o"></span>
+          <span class="lab" title="Décalage du centre de la coupe par rapport au centre du bâtiment (x vers l'est, y vers le nord)">x</span><input type="number" id="scx" step="0.1" value="0" title="Décalage vers l'est (m)">
+          <span class="lab">y</span><input type="number" id="scy" step="0.1" value="0" title="Décalage vers le nord (m)">
+          <span class="lab" title="Rotation : azimut de l'extrémité A (180 = sud → nord, 90 = est → ouest)">angle</span><input type="number" id="sca" step="5" value="180" title="Azimut de l'extrémité A (°)">
+          <button id="scc" title="Remettre la coupe au centre du bâtiment">⌖</button>
+          <button id="suncut-zout" title="Zoom arrière">−</button><button id="suncut-zin" title="Zoom avant">+</button>
+          <button id="suncut-fit" title="Revenir à la coupe entière">Ajuster</button>
+          <button id="suncut-size" title="Agrandir la coupe dans la vue">Agrandir</button>
+          <button id="suncut-png" title="Exporter la coupe solaire en PNG, à 300 dpi (à l'échelle choisie si une échelle est fixée)">PNG</button>
+        </div></div>
+      <div id="zoom-wrap" hidden>
+        <div id="zoom-bar">
+          <label>Point du mur, azimut <input type="number" id="zoom-az" min="0" max="360" step="5" value="0">°</label>
+          <button id="zoom-up" title="Le pan de mur qui reçoit le vent">Face au vent</button><button id="zoom-side">De côté</button><button id="zoom-down">Sous le vent</button>
+          <label title="Le long du mur × à travers le mur. Plus petit = plus fin : les joints de 2 cm ne sont vus un par un qu'en dessous d'environ 2 × 2 m.">boîte <input type="number" id="zoom-L" min="1" max="20" step="0.5" value="10"> × <input type="number" id="zoom-D" min="1" max="20" step="0.5" value="5"> m</label>
+          <button id="zoom-go" class="primary">Lancer le zoom</button><button id="zoom-pause">Pause</button>
+          <span class="seg" id="zoom-mode"><button data-zm="coupes" class="on" title="Coupe horizontale et coupe verticale">Coupes</button><button data-zm="3d" title="Vue 3D seule : briques et lignes de courant">3D</button></span>
+          <label>coupe à <input type="range" id="zoom-z" min="0.1" max="3.5" step="0.02" value="1.5"> <span id="zoom-z-o">1,50 m</span></label>
+        </div>
+        <div id="zoom-bar3d" hidden>
+          <label>Départs <select id="zoom-seed"><option value="grille" selected>grille face au vent, ±50 cm autour de la coupe</option><option value="grille-tout">grille face au vent, toute la hauteur du mur</option><option value="nappe">nappe à la hauteur de coupe</option></select></label>
+          <label>tous les <select id="zoom-step"><option value="2.5">2,5</option><option value="5" selected>5</option><option value="10">10</option></select> cm</label>
+          <button id="zoom-anim">Arrêter les tirets</button><button id="zoom-fit">Recadrer</button>
+          <span class="hint">Glisser : tourner · clic droit : déplacer · molette : zoom · tirets au ralenti × 20</span>
+        </div>
+        <div id="zoom-views"><canvas id="zoom-plan"></canvas><canvas id="zoom-cut"></canvas><canvas id="zoom-3d" hidden></canvas></div>
+        <div id="zoom-info" class="hint"></div>
+      </div>
+      <div id="banner" hidden></div>
+      <div id="probe"></div>
+      <div id="probe-card" hidden></div>
+      <div id="probe-pin3d" hidden>P</div>
+    </div>
+  </main>
+
+  <aside id="results">
+    <label class="check res-all" title="Montrer aussi les résultats des autres étapes"><input type="checkbox" id="res-all"> Tous les résultats</label>
+    <details data-steps="*" open><summary>Calcul</summary>
+      <div class="btns"><button id="c-pause">Pause</button><button id="c-reset">Relancer</button></div>
+      <div class="progress"><div id="c-bar"></div></div>
+      <div id="c-status" class="status"></div>
+    </details>
+
+    <details data-steps="*" open><summary>Affichage</summary>
+      <div class="seg" id="disp-mode">
+        <button data-mode="speed" class="on">Vitesse</button>
+        <button data-mode="ratio">Rapport</button>
+        <button data-mode="comfort">Confort</button>
+        <button data-mode="diff" title="Écart à la variante de référence">Écart</button>
+        <button data-mode="temp" title="Température de l'air à l'heure choisie (onglet Soleil)">Temp.</button>
+        <button data-mode="feel" title="Ressenti (température apparente : air, humidité, vent local, soleil et rayonnement des parois) à l'heure choisie">Ressenti</button>
+        <button data-mode="utci" title="Carte de l'UTCI (stress thermique, 10 classes) à l'heure choisie : air, humidité, vent local, soleil et rayonnement des parois, dehors et dedans">UTCI</button>
+      </div>
+      <label class="check"><input type="checkbox" id="disp-particles" checked> Particules</label>
+      <canvas id="legend" width="300" height="64"></canvas>
+    </details>
+
+    <details data-steps="vent rendu" open id="bilan-section"><summary>Bilan intérieur / extérieur</summary>
+      <div id="bilan-body" class="hint">Pas d'écran (briques, lames) dans la scène.</div>
+      <canvas id="bilan-rose" width="220" height="220" style="display:none" title="Air entrant (vert, vers le centre) et sortant (orange) par secteur de 30°"></canvas>
+      <div class="hint">Rose : air entrant par secteur (vert, plein) et sortant (orange, arc), à travers la ligne de contrôle tracée en pointillé juste à l'intérieur du mur.</div>
+      <label class="check"><input type="checkbox" id="bilan-show" checked> Afficher la ligne de contrôle</label>
+    </details>
+
+    <details data-steps="vent" open id="prof-section"><summary>Profil selon la hauteur</summary>
+      <canvas id="prof-canvas" width="300" height="190"></canvas>
+      <div id="prof-info" class="hint">Disponible en calcul 3D : vitesse intérieure et pénétration de 0 à la hauteur de l'ouvrage.</div>
+    </details>
+
+    <details data-steps="chaleur confort" open id="th-section"><summary>Chaleur sur 24 h</summary>
+      <canvas id="th-curves" title="Clic : choisir l'heure"></canvas>
+      <div id="th-sum" class="hint"></div>
+    </details>
+
+    <details data-steps="chaleur" open id="th-season-section"><summary>Été : juin à septembre</summary>
+      <div class="btns"><button id="th-season-run">Calculer l'été</button></div>
+      <canvas id="th-season" title="Heures de ressenti au-dessus de 26 °C par jour, niveau du réservoir"></canvas>
+      <div id="th-season-sum" class="hint"></div>
+    </details>
+  </aside>
+</div>
+
+<script src="js/raster.js"></script>
+<script src="js/solver_cpu.js"></script>
+<script src="js/solver_gpu.js"></script>
+<script src="js/solver3d_gpu.js"></script>
+<script src="js/vox3d.js"></script>
+<script src="js/osm.js"></script>
+<script src="meteo/defaut_epw.js"></script>
+<script src="js/epw.js"></script>
+<script src="js/import.js"></script>
+<script src="js/import3dm.js"></script>
+<script src="js/export.js"></script>
+<script src="js/live.js"></script>
+<script src="js/bilan.js"></script>
+<script src="js/view3d.js"></script>
+<script src="js/variantes.js"></script>
+<script src="js/soleil.js"></script>
+<script src="js/utci.js"></script>
+<script src="js/thermique.js"></script>
+<script src="js/mesures.js"></script>
+<script src="js/vues.js"></script>
+<script src="js/zoom.js"></script>
+<script src="js/zoom3d.js"></script>
+<script src="js/main.js"></script>
+<script src="js/etapes.js"></script>
+<script src="js/sonde.js"></script>
+</body>
+</html>

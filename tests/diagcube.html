@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>CL-WIND 3D : stabilité du cube</title></head>
+<body style="background:#111;color:#ddd;font:13px monospace"><pre id="log">stabilité cube…</pre>
+<script src="../js/solver3d_gpu.js"></script>
+<script>
+// Cube posé au sol (H = 20 cellules) : pas auquel le calcul devient non fini, selon les réglages
+(async function () {
+  var Q = new URLSearchParams(location.search), POST = Q.get('post'), out = { cas: [] };
+  async function send(p, b) { if (POST) try { await fetch(POST + p, { method: 'POST', body: b }); } catch (e) { /* rien */ } }
+  window.onunhandledrejection = function (e) { out.erreur = String(e.reason && e.reason.stack || e.reason); send('/result', JSON.stringify(out)); send('/done', 'x'); };
+  var S = await CLW.Solver3D.create(); out.gpu = S && S.info;
+  var cases = JSON.parse(Q.get('cases') || '[{"nom":"base"},{"nom":"Cs 0,3","cs":0.3},{"nom":"tau0 0,52","tau0":0.52},{"nom":"uref 0,04","uref":0.04},{"nom":"gam 0","gam":0}]');
+  var H = 20, nx = 200, ny = 120, nz = 70, box = [50, 70, 51, 71, 1, 1 + H];
+  var f = new Uint32Array(nx * ny * nz);
+  for (var k = 0; k < nx * ny; k++) f[k] = 3;
+  for (var z = box[4]; z < box[5]; z++) for (var y = box[2]; y < box[3]; y++) for (var x = box[0]; x < box[1]; x++) f[x + nx * (y + ny * z)] = 1;
+  for (var c = 0; c < cases.length; c++) {
+    var cs = cases[c];
+    S.reset({ nx: nx, ny: ny, nz: nz, flags: f, drag: null, uref: cs.uref || 0.06, zref: H, alpha: 0.25, tau0: cs.tau0 || 0.51, cs: cs.cs || 0.2, gam: cs.gam == null ? 0.05 : cs.gam, dir: 270, lamL: 800 });
+    S.sampleEvery = 1e9;
+    var steps = 0, res = { nom: cs.nom, nan_au_pas: null, umax: [] };
+    for (var target = 250; target <= 6000; target += 250) {
+      while (steps < target) { S.since = 0; var p = S.frame(); if (p) await p; steps = S.steps; }
+      var dev = S.device, a = new ArrayBuffer(16); new Uint32Array(a)[0] = S.B.N; new Float32Array(a)[1] = 1;
+      dev.queue.writeBuffer(S.B.acc, 0, a);
+      var enc = dev.createCommandEncoder(), ps = enc.beginComputePass(); ps.setPipeline(S.pipeAcc); ps.setBindGroup(0, S.B.bgAcc); ps.dispatchWorkgroups(S.B.wgAcc[0], S.B.wgAcc[1]); ps.end(); dev.queue.submit([enc.finish()]);
+      var sl = await S.readSlices(1 + H / 2, 61), m = 0, bad = false, at = null, mh = 0, ath = null;
+      for (var i = 3; i < sl.v.length; i += 4) { var v = sl.v[i]; if (!isFinite(v)) { bad = true; break; } if (v > m) { m = v; at = [((i - 3) / 4) % nx, Math.floor((i - 3) / 4 / nx)]; } }
+      for (var i2 = 3; i2 < sl.h.length && !bad; i2 += 4) { var w = sl.h[i2]; if (!isFinite(w)) bad = true; else if (w > mh) { mh = w; ath = [((i2 - 3) / 4) % nx, Math.floor((i2 - 3) / 4 / nx)]; } }
+      if (target % 500 === 0) res.umax.push({ pas: target, vert: +(m / (cs.uref || 0.06)).toFixed(2), x_z: at, horiz: +(mh / (cs.uref || 0.06)).toFixed(2), x_y: ath });
+      if (bad) { res.nan_au_pas = target; break; }
+    }
+    out.cas.push(res); await send('/result', JSON.stringify(out));
+  }
+  await send('/done', 'ok');
+})();
+</script></body></html>

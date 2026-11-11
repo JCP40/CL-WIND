@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>CL-WIND 3D : diagnostic</title></head>
+<body style="background:#111;color:#ddd;font:13px monospace"><pre id="log">diagnostic 3D…</pre>
+<script src="../js/solver3d_gpu.js"></script>
+<script>
+// Diagnostic : domaine vide, suivi d'une colonne (vitesse instantanée relue via la moyenne w = 1)
+(async function () {
+  var Q = new URLSearchParams(location.search), POST = Q.get('post'), out = { cas: [] };
+  async function send(p, b) { if (POST) try { await fetch(POST + p, { method: 'POST', body: b }); } catch (e) { /* rien */ } }
+  window.onerror = function (m) { out.erreur = String(m); send('/result', JSON.stringify(out)); };
+  window.onunhandledrejection = function (e) { out.erreur = String(e.reason && e.reason.stack || e.reason); send('/result', JSON.stringify(out)); send('/done', 'x'); };
+  var S = await CLW.Solver3D.create(); out.gpu = S && S.info;
+  if (S) S.device.onuncapturederror = function (e) { out.erreur_gpu = (out.erreur_gpu || '') + e.error.message + ' | '; };
+  await send('/result', JSON.stringify(out));
+  var cases = JSON.parse(Q.get('cases') || '[{"tau0":0.51,"gam":0.05},{"tau0":0.51,"gam":0.05,"lamL":0}]');
+  for (var c = 0; c < cases.length; c++) {
+    var cs = cases[c], nx = 160, ny = 80, nz = 60, f = new Uint32Array(nx * ny * nz);
+    for (var k = 0; k < nx * ny; k++) f[k] = 3;
+    S.reset({ nx: nx, ny: ny, nz: nz, flags: f, drag: null, uref: cs.uref || 0.06, zref: 15, alpha: cs.alpha == null ? 0.25 : cs.alpha, tau0: cs.tau0, cs: 0.2, gam: cs.gam, dir: 270, lamL: cs.lamL == null ? 480 : cs.lamL });
+    S.sampleEvery = 1e9; // pas de moyenne automatique : lecture explicite
+    var trace = [], steps = 0;
+    for (var it = 0; it < 12; it++) {
+      var target = [1, 2, 5, 10, 30, 100, 300, 600, 1000, 2000, 4000, 8000][it];
+      while (steps < target) { S.since = 0; var p = S.frame(); if (p) await p; steps = S.steps; }
+      // forcer une moyenne w = 1 (copie de la vitesse instantanée) puis relire deux colonnes
+      var dev = S.device, a = new ArrayBuffer(16); new Uint32Array(a)[0] = S.B.N; new Float32Array(a)[1] = 1;
+      dev.queue.writeBuffer(S.B.acc, 0, a);
+      var enc = dev.createCommandEncoder(), ps = enc.beginComputePass(); ps.setPipeline(S.pipeAcc); ps.setBindGroup(0, S.B.bgAcc); ps.dispatchWorkgroups(S.B.wgAcc[0], S.B.wgAcc[1]); ps.end(); dev.queue.submit([enc.finish()]);
+      var col = await S.readColumn(nx >> 1, ny >> 1), colIn = await S.readColumn(3, ny >> 1), colOut = await S.readColumn(nx - 3, ny >> 1);
+      function s(cc) { var r = []; for (var z of [1, 2, 5, 20, 40, 55, 59]) r.push(+cc[4 * z].toFixed(4)); return r; }
+      function uz(cc) { var m = 0; for (var z = 0; z < nz; z++) m = Math.max(m, Math.abs(cc[4 * z + 2])); return +m.toExponential(2); }
+      trace.push({ pas: steps, ux_centre_z1_2_5_20_40_55_59: s(col), uzmax: uz(col), ux_entree: s(colIn), ux_sortie: s(colOut) });
+      out.encours = { cas: c, params: cs, trace: trace }; await send('/result', JSON.stringify(out));
+      if (!isFinite(col[4 * 20])) break;
+    }
+    out.cas.push({ params: cs, trace: trace });
+    await send('/result', JSON.stringify(out));
+  }
+  await send('/done', 'ok');
+})();
+</script></body></html>

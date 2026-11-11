@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><title>CL-WIND 3D : essais</title></head>
+<body style="background:#111;color:#ddd;font:13px monospace">
+<pre id="log">essais 3D…</pre>
+<canvas id="cv" style="display:none"></canvas>
+<script src="../js/solver3d_gpu.js"></script>
+<script>
+(async function () {
+  var out = { start: new Date().toISOString() }, logEl = document.getElementById('log');
+  var Q = new URLSearchParams(location.search), POST = Q.get('post');
+  function log(s) { logEl.textContent += '\n' + s; }
+  async function send(path, body) { if (!POST) return; try { await fetch(POST + path, { method: 'POST', body: body }); } catch (e) { /* rien */ } }
+  async function run(S, steps, onProgress) {
+    var t0 = performance.now(), n0 = S.steps;
+    while (S.steps - n0 < steps) { var p = S.frame(); if (p) await p; else await new Promise(function (r) { setTimeout(r, 0); }); }
+    return (S.steps - n0) / ((performance.now() - t0) / 1000);
+  }
+  // image d'une coupe : vitesse moyenne |u| / uref, échelle bleu → rouge de 0 à 2
+  function ramp(t) { t = Math.max(0, Math.min(1, t)); var c = [[20, 30, 120], [40, 110, 220], [60, 190, 120], [240, 220, 60], [245, 140, 40], [210, 40, 40]]; var x = t * 5, i = Math.min(4, Math.floor(x)), f = x - i; return c[i].map(function (a, k) { return Math.round(a + (c[i + 1][k] - a) * f); }); }
+  async function image(name, data, w, h, solid, uref, flipY) {
+    var cv = document.getElementById('cv'), sc = Math.max(1, Math.floor(900 / w)); cv.width = w * sc; cv.height = h * sc;
+    var ctx = cv.getContext('2d'), im = ctx.createImageData(w, h);
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      var k = y * w + x, row = flipY ? h - 1 - y : y, o = 4 * (row * w + x);
+      var c = solid[k] ? [90, 90, 90] : ramp(data[4 * k + 3] / uref / 2);
+      im.data[o] = c[0]; im.data[o + 1] = c[1]; im.data[o + 2] = c[2]; im.data[o + 3] = 255;
+    }
+    var t = document.createElement('canvas'); t.width = w; t.height = h; t.getContext('2d').putImageData(im, 0, 0);
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(t, 0, 0, w * sc, h * sc);
+    var blob = await new Promise(function (r) { cv.toBlob(r, 'image/png'); });
+    await send('/image?name=' + name, blob);
+  }
+  try {
+    var S = await CLW.Solver3D.create();
+    if (!S) { out.error = 'pas de WebGPU'; throw new Error('pas de WebGPU'); }
+    out.gpu = S.info; out.maxCells = CLW.Solver3D.maxCells(); log('carte : ' + S.info + ', max ' + out.maxCells + ' cellules');
+    var base = { tau0: 0.51, cs: 0.2, gam: 0.05, alpha: 0.25, dir: 270 };
+    if (Q.get('turbI')) base.turbI = +Q.get('turbI');
+    if (Q.get('turbL')) base.turbL = +Q.get('turbL');
+    out.base = base; var ONLY = Q.get('only');
+    function flagsFor(nx, ny, nz, box) {
+      var f = new Uint32Array(nx * ny * nz);
+      for (var y = 0; y < ny; y++) for (var x = 0; x < nx; x++) f[x + nx * y] = 3; // sol glissant
+      if (box) for (var z = box[4]; z < box[5]; z++) for (var y2 = box[2]; y2 < box[3]; y2++) for (var x2 = box[0]; x2 < box[1]; x2++) f[x2 + nx * (y2 + ny * z)] = 1;
+      return f;
+    }
+    if (ONLY !== 'cube') {
+    // 1. vitesse : domaine vide 300 × 200 × 120 (7,2 M cellules, 10 cm pour 30 × 20 × 12 m)
+    var nx = 300, ny = 200, nz = 120;
+    S.reset(Object.assign({ nx: nx, ny: ny, nz: nz, flags: flagsFor(nx, ny, nz), drag: null, uref: 0.06, zref: 15, lamL: 1200 }, base));
+    await run(S, 20);
+    var r1 = await run(S, 300);
+    out.perf = { cells: nx * ny * nz, steps_s: +r1.toFixed(1), MLUPS: +(r1 * nx * ny * nz / 1e6).toFixed(0) };
+    log('vitesse 7,2 M cellules : ' + out.perf.steps_s + ' pas/s, ' + out.perf.MLUPS + ' MLUPS');
+    await send('/result', JSON.stringify(out));
+    // 2. profil en domaine vide : 160 × 80 × 60, 2 traversées ; écart au profil imposé au centre
+    nx = 160; ny = 80; nz = 60;
+    var p2 = Object.assign({ nx: nx, ny: ny, nz: nz, flags: flagsFor(nx, ny, nz), drag: null, uref: 0.06, zref: 15, lamL: 480 }, base);
+    S.reset(p2);
+    await run(S, Math.round(3 * S.travSteps));
+    var colC = await S.readColumn(nx >> 1, ny >> 1), colD = await S.readColumn(nx - 20, ny >> 1);
+    var errC = 0, errD = 0, top = nz - Math.ceil(Math.max(6, 0.1 * nz));
+    var prof = [];
+    for (var z = 2; z < top; z++) {
+      var th = p2.uref * Math.pow((z - 0.5) / p2.zref, p2.alpha);
+      errC = Math.max(errC, Math.abs(colC[4 * z] - th) / th); errD = Math.max(errD, Math.abs(colD[4 * z] - th) / th);
+      if (z % 8 === 2) prof.push([z, +(colC[4 * z] / th).toFixed(3)]);
+    }
+    out.profil = { ecart_max_centre: +(100 * errC).toFixed(1), ecart_max_aval: +(100 * errD).toFixed(1), u_sur_theorie: prof, uz_centre_max: +Math.max.apply(null, Array.from(colC).filter(function (v, k) { return k % 4 === 2; }).map(Math.abs)).toExponential(2) };
+    log('profil : écart max ' + out.profil.ecart_max_centre + ' % au centre, ' + out.profil.ecart_max_aval + ' % en aval');
+    await send('/result', JSON.stringify(out));
+    }
+    // 3. cube posé au sol, H = 20 cellules, décalé d'une cellule latéralement (sans symétrie parfaite)
+    var H = 20; nx = 240; ny = 140; nz = 80;
+    var box = [60, 80, 61, 81, 1, 1 + H];
+    var p3 = Object.assign({ nx: nx, ny: ny, nz: nz, flags: flagsFor(nx, ny, nz, box), drag: null, uref: 0.06, zref: H, lamL: 800 }, base);
+    S.reset(p3);
+    var t3 = performance.now();
+    while (S.trav < 6) { await run(S, 2000); log('cube : ' + S.trav.toFixed(2) + ' traversées'); }
+    out.cube_duree_s = Math.round((performance.now() - t3) / 1000);
+    var jy = 71, sl = await S.readSlices(1 + Math.round(H / 2), jy);
+    var v = sl.v; // nx × nz, vec4
+    function ux(x, z) { return v[4 * (z * nx + x)]; }
+    function zr(zz) { var xr = null; for (var x = box[1]; x < nx - 10; x++) { if (ux(x, zz) > 0) { xr = x; break; } } return xr === null ? null : +((xr - box[1]) / H).toFixed(2); }
+    function front(zz) { var xf = null; for (var x = box[0] - 1; x > 5; x--) { if (ux(x, zz) > 0) { xf = x; break; } } return xf === null ? null : +((box[0] - 1 - xf) / H).toFixed(2); }
+    var uH = p3.uref, umax = 0;
+    for (var z3 = box[5]; z3 < box[5] + 10; z3++) for (var x3 = box[0]; x3 < box[1]; x3++) umax = Math.max(umax, v[4 * (z3 * nx + x3) + 3]);
+    out.cube = { H_cellules: H, recirculation_arriere_xR_sur_H: { 'z=0,025H': zr(1), 'z=0,1H': zr(2), 'z=0,25H': zr(5) }, tourbillon_avant_sur_H: front(1), survitesse_toit: +(umax / uH).toFixed(2) };
+    log('cube : ' + JSON.stringify(out.cube));
+    // images : coupe verticale (axe du vent, centre du cube) et horizontale à mi-hauteur
+    var solV = new Uint8Array(nx * nz), solH = new Uint8Array(nx * ny);
+    for (var z4 = 0; z4 < nz; z4++) for (var x4 = 0; x4 < nx; x4++) solV[z4 * nx + x4] = p3.flags[x4 + nx * (jy + ny * z4)];
+    var kz = 1 + Math.round(H / 2);
+    for (var y5 = 0; y5 < ny; y5++) for (var x5 = 0; x5 < nx; x5++) solH[y5 * nx + x5] = p3.flags[x5 + nx * (y5 + ny * kz)];
+    await image('cube_coupe_verticale', v, nx, nz, solV, uH, true);
+    await image('cube_coupe_horizontale', sl.h, nx, ny, solH, uH, true);
+    out.fin = new Date().toISOString();
+  } catch (e) { out.error = String(e && e.stack || e); log('ERREUR ' + out.error); }
+  await send('/result', JSON.stringify(out));
+  await send('/done', 'ok');
+})();
+</script>
+</body></html>

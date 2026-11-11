@@ -1,0 +1,488 @@
+﻿Analyse du vent : vent simplifié en plan, pour l'esquisse
+==================================================
+
+Analyse du vent simule de façon très simplifiée le vent à hauteur de piéton, vu en plan.
+Il sert à repérer les zones d'accélération, les sillages et l'abri des arbres et
+des murs, et à comparer des variantes en phase d'esquisse.
+
+CE N'EST NI UNE ÉTUDE CFD NI UNE SOUFFLERIE. Les résultats sont approximatifs.
+
+
+1. LANCER L'APPLICATION
+-----------------------
+- Windows : double-cliquez sur LANCER-CL-WIND.bat. Il ouvre l'application dans
+  Chrome, sinon dans Edge, sinon dans le navigateur par défaut.
+- Autre système : ouvrez index.html dans Chrome ou Edge récents.
+- Le badge en haut à droite indique le moteur de calcul :
+    WebGPU             : calcul sur la carte graphique, rapide et en grille fine ;
+    Processeur (lent)  : repli automatique, grille plus grossière.
+  Firefox et Safari peuvent fonctionner, souvent sans WebGPU.
+- Ordinateur portable à deux cartes (Intel + NVIDIA ou AMD) : sous Windows, une
+  page web ne peut pas choisir la carte, et Chrome prend l'Intel, bien plus lente.
+  LANCER-CL-WIND.bat (et la liaison Grasshopper) ouvrent donc Analyse du vent dans un
+  profil Chrome dédié, avec la carte haute performance. Le badge l'indique :
+  « WebGPU · NVIDIA ». Pour la liaison Grasshopper dans cette fenêtre, tapez
+  http://127.0.0.1:8765/ dans sa barre d'adresse.
+  Autre solution, durable : Paramètres Windows > Système > Écran > Graphiques >
+  Google Chrome > Hautes performances, puis redémarrer Chrome.
+- Gardez un seul onglet Analyse du vent ouvert à la fois : deux onglets se partagent la
+  carte graphique et ralentissent l'un l'autre.
+
+Ce qui demande Internet : seulement la recherche d'adresse et l'import
+OpenStreetMap. Tout le reste fonctionne hors ligne : dessin, calcul, fichier EPW,
+imports DXF, GeoJSON et GLB, exports PNG et DXF.
+
+
+2. CE QUE CALCULE Analyse du vent, ET SES LIMITES
+-----------------------------------------
+- Écoulement en 2D, à hauteur de piéton : le vent ne peut pas passer au-dessus
+  des toits. Les bâtiments sont des obstacles pleins ; leur hauteur n'intervient
+  pas dans le calcul.
+- Vent moyen, sans rafales.
+- Les sillages derrière les bâtiments sont probablement trop longs et trop calmes.
+- En tissu dense, les vitesses dans les rues sont surestimées (le panneau Domaine
+  le signale).
+- Le tissu urbain est coupé net aux bords du domaine : lisez le résultat au
+  centre, où les vitesses sont les plus fiables.
+- Un rappel vers le vent libre, de longueur 120 m, empêche les tourbillons de
+  grandir sans fin. C'est une valeur de réglage, non calibrée.
+
+Bon usage :
+- Comparez des variantes (avec ou sans arbres, mur, bâtiment déplacé...) plutôt
+  que de lire des valeurs absolues.
+- Attendez « Moyenne stabilisée » (barre verte, panneau Calcul) avant d'exporter.
+- Les couleurs de confort (calme, debout, marche, gênant, inconfortable) reposent
+  sur des seuils indicatifs de vitesse moyenne.
+
+
+3. UTILISATION
+--------------
+Outils du plan :  S sélection, R rectangle, B bâtiment polygonal (un clic par
+sommet, double clic ou Entrée pour finir), T arbre, W mur (double clic pour finir),
+Échap abandonne, Suppr supprime, Ctrl+Z annule (50 niveaux), F cadre le domaine.
+Molette : zoom. Bouton droit ou central : déplacer la vue.
+Un plan importé forme un groupe déplacé en bloc ; Majuscule + glisser déplace un
+seul objet.
+
+Vent : vitesse de référence et direction « venant de » (0 = nord, 90 = est,
+270 = ouest). Changer seulement la vitesse ne relance pas le calcul.
+
+Fichier météo par défaut : Nantes Atlantique AP (meteo/Nantes.Atlantique.AP_FRA.epw,
+TMYx 2007-2021), chargé au démarrage ; son nom s'affiche en haut à droite.
+Fichier EPW : chargez un fichier météo pour obtenir la rose des vents du site,
+filtrée par saison, jour ou nuit. Un clic sur un secteur applique sa direction et
+sa vitesse, ramenée à 1,5 m selon l'environnement choisi. Fichiers gratuits :
+climate.onebuilding.org et energyplus.net.
+Le fichier exemples/meteo_FICTIVE_exemple.epw est INVENTÉ : il sert seulement à
+essayer l'outil.
+
+OpenStreetMap : saisissez une adresse ou des coordonnées (47.2133, -1.5593),
+un rayon de 80 à 400 m, puis « Importer le site ».
+- Vérifiez toujours que le lieu trouvé est le bon.
+- L'import dépend de serveurs publics et gratuits. Il peut prendre jusqu'à
+  2 minutes. Ne le lancez pas depuis toute une salle en même temps : importez le
+  site une fois, puis partagez un fichier (export DXF) ou laissez un poste faire
+  l'import.
+- Rayon conseillé : environ 10 fois la hauteur du bâti, entre 100 et 300 m.
+
+Imports : DXF ASCII (un usage par calque : bâtiment, mur, arbre ou ignorer),
+GeoJSON (en degrés ou en mètres), GLB non compressé (coupe horizontale à 1,5 m).
+Indiquez le nord du plan s'il n'est pas vers le haut (en degrés, sens horaire).
+Limites : 60 Mo et 20 000 objets.
+
+Exports : image PNG (1800 px, avec légende, échelle, nord et vent) et DXF en
+millimètres (bâtiments, murs, arbres, domaine et lignes d'égale vitesse à 2, 4,
+6 et 8 m/s), origine au coin sud-ouest du domaine, nord vers +Y.
+
+
+4. CITER OPENSTREETMAP
+----------------------
+Tout rendu qui utilise un import OpenStreetMap doit porter la mention :
+    © contributeurs OpenStreetMap, ODbL
+L'image PNG exportée l'ajoute automatiquement.
+
+
+5. PUBLIER L'APPLICATION EN HTTPS
+---------------------------------
+WebGPU n'est disponible que dans un contexte sécurisé : fichier local (file://),
+localhost ou site en HTTPS. Pour mettre Analyse du vent en ligne pour une promotion,
+déposez le contenu du dossier (index.html, css, js, exemples) sur n'importe quel
+hébergement statique en HTTPS, par exemple :
+- GitHub Pages : créer un dépôt, y déposer les fichiers, activer Pages ;
+- Netlify ou Cloudflare Pages : glisser-déposer le dossier ;
+- le serveur web de l'école, s'il sert ses pages en HTTPS.
+Aucun serveur de calcul n'est nécessaire : tout tourne dans le navigateur.
+Une page en HTTP simple (sans S) fonctionnera seulement sur le processeur.
+
+
+6. LIAISON GRASSHOPPER EN DIRECT (Rhino 8 ou 9)
+-----------------------------------------------
+Le fichier grasshopper/clwind_live.py relie une définition Grasshopper à Analyse du vent :
+à chaque recalcul (curseur déplacé, géométrie modifiée), les volumes sont coupés
+à 1,5 m et Analyse du vent remplace la scène et relance le calcul du vent.
+On ne peut pas ouvrir un fichier .gh dans Analyse du vent : seul Grasshopper sait le
+calculer. C'est donc Grasshopper qui envoie sa géométrie.
+
+Mise en place, une fois :
+1. Dans Grasshopper, posez un composant « Script » (onglet Maths > Script),
+   choisissez Python 3, collez tout le contenu de grasshopper/clwind_live.py.
+2. Zoomez sur le composant et créez les entrées avec ces noms exacts :
+     volumes, ecrans, murs, arbres, hauteur, epaisseur, rayon, densite,
+     joint, vitesse, direction, actif, port, dossier
+   Seules volumes, ecrans, murs et arbres sont utiles au départ ; les autres sont
+   facultatives. Le composant passe lui-même volumes, ecrans, murs et arbres en
+   accès « arbre » : un seul envoi par recalcul, même si la
+   géométrie arrive en plusieurs branches.
+   Sorties : info, url, coupe.
+3. Branchez vos bâtiments (Breps, extrusions, maillages, SubD) sur volumes,
+   vos murs et clôtures (courbes) sur murs, vos arbres (points, cercles ou
+   volumes) sur arbres. Branchez un panneau sur info.
+4. Au premier calcul, Chrome (ou Edge) s'ouvre sur http://127.0.0.1:8765/.
+   Ouvrez toujours Analyse du vent par cette adresse pendant la liaison, pas en
+   double-cliquant sur index.html.
+
+Si Analyse du vent a été déplacé, indiquez son dossier (celui qui contient
+index.html) dans l'entrée « dossier ». Un booléen Faux sur « actif » arrête la
+liaison. Les unités du document Rhino sont converties en mètres ; X vers l'est,
+Y vers le nord. « vitesse » et « direction » (venant de, 0 = nord) pilotent le
+vent depuis Grasshopper : pratique pour comparer des directions.
+
+À savoir :
+- Chaque modification relance le calcul depuis zéro. Pour comparer deux
+  variantes, attendez « Moyenne stabilisée » avant de lire ou d'exporter.
+- Les objets reçus de Grasshopper sont remplacés à chaque envoi : modifiez-les
+  dans Grasshopper, pas dans Analyse du vent. Les objets dessinés à la main restent.
+- La coupe se fait à « hauteur » au-dessus du point le plus bas des volumes :
+  ne branchez pas un terrain en pente sur volumes.
+- Un volume non fermé donne un contour ouvert, ignoré (signalé dans info).
+- La page reste au même endroit d'un envoi à l'autre ; « Recentrer » dans le
+  panneau Liaison Grasshopper recadre sur la géométrie actuelle.
+
+Écrans poreux (entrée « ecrans ») :
+Briques ajourées, lames, claustras sont souvent plus fins qu'une cellule de la
+grille (10 cm pour un domaine de 50 m) : en volumes pleins, ils disparaissent ou
+se bouchent. Branchés sur « ecrans », ils ne sont pas pleins : Analyse du vent les soude
+en une bande (en orange sur le plan), mesure sa surface ouverte au col, c'est-à-dire
+au plus étroit entre deux éléments voisins (elle varie avec l'angle des lames), et
+applique la perte de charge d'une grille de même surface ouverte. Le panneau
+Domaine affiche la surface ouverte et le coefficient K de chaque écran.
+- Les joints sont soudés automatiquement d'après l'espacement des éléments ; une
+  ouverture nettement plus large que les joints (une porte) reste ouverte. Si une
+  ouverture se referme ou si l'écran est coupé en morceaux, réglez « joint »
+  (rayon de soudure, en m).
+- Voir l'air passer DANS les joints : il faut des cellules au moins aussi
+  petites que l'épaisseur des éléments (2 à 4 cm pour des briques). Réduisez le
+  domaine (minimum 10 m ; la liaison Grasshopper le règle à 4 fois l'emprise) et
+  choisissez Résolution « Très fine, 1024 ». Avec « Briques, lames : Automatique »,
+  les éléments deviennent alors pleins et l'air passe réellement entre eux ;
+  un joint de moins de deux cellules reste fermé.
+  Coût : sur une carte graphique intégrée (Intel Iris Xe), environ 170 pas/s en
+  1024, soit une dizaine de minutes jusqu'à « Moyenne stabilisée » ; les jets
+  sont visibles après 1 à 2 minutes. « Détail » (1536) et « Détail max » (2048)
+  demandent une carte graphique dédiée. Le panneau Calcul affiche le temps restant.
+- Modèle simplifié : la perte de charge est la même quel que soit l'angle du vent
+  sur l'écran, et l'écran ne dévie pas l'air comme le feraient de vraies lames.
+  Comparez des variantes plutôt que de lire des valeurs.
+
+
+7. BILAN INTÉRIEUR / EXTÉRIEUR (ouvrages ajourés)
+-------------------------------------------------
+Quand la scène contient des écrans (entrée « ecrans » : briques, lames), le
+panneau « Bilan intérieur / extérieur » mesure ce que le vent fait à l'intérieur :
+- Zone intérieure : l'enveloppe des briques et des lames, moins l'épaisseur du
+  mur. Ligne de contrôle (pointillé blanc) : juste à l'intérieur du mur.
+- Vitesse moyenne intérieure, en m/s et en % du vent libre, et maximum.
+- Confort intérieur : part de la surface dans chaque classe (calme, debout…).
+- Air entrant : débit à travers la ligne de contrôle, en m³/s par mètre de
+  hauteur, et sa part entrée par les briques ou par les ouvertures.
+- Taux de pénétration : air entrant rapporté à celui qui traverserait
+  l'intérieur sans mur (100 % = mur transparent, 0 % = mur plein).
+- Renouvellement d'air : indicatif (calcul en plan, à une seule hauteur).
+- Rose : entrées d'air (vert) et sorties (orange) par secteur de 30°.
+Pour voir l'air dans les joints, prenez la résolution « Ultra, 3072 » (cellules
+d'environ 8 mm pour un domaine de 25 m) avec une carte graphique dédiée.
+Au départ du calcul, le vent libre est imposé partout, y compris à l'intérieur :
+les chiffres n'ont de sens qu'après « Moyenne stabilisée ».
+Comparez des variantes (appareillage, angle des lames, ouvertures) à la même
+hauteur de coupe, au même vent et à la même résolution.
+
+
+8. CALCUL 3D (hauteur réelle, toits, sol)
+-----------------------------------------
+Panneau Domaine > Calcul : « 3D ». Il faut WebGPU (Chrome ou Edge récents) et de
+préférence une carte graphique dédiée (voir section 1 pour la carte NVIDIA).
+- Le plan affiche la coupe horizontale à la hauteur choisie (curseur « Hauteur
+  de la coupe affichée », 1,5 m par défaut) ; changer la hauteur ne relance pas
+  le calcul. La coupe verticale dans l'axe du vent s'affiche en bas de la vue
+  (pointillé : hauteur de la coupe horizontale). Couleurs, sonde, particules,
+  export PNG et bilan intérieur / extérieur portent sur la coupe horizontale.
+- Avec la liaison Grasshopper, Analyse du vent reçoit les maillages 3D : « volumes »
+  sont pleins, « ecrans » (briques, lames) forment une bande poreuse mesurée
+  couche par couche (surface ouverte au col, comme en 2D). Sans Grasshopper, les
+  bâtiments dessinés sont extrudés à leur hauteur (6 m par défaut), les murs à
+  2 m, les arbres ont un houppier sphérique.
+- Finesse 3D : Aperçu 2 M cellules, Normale 7 M, Fine 20 M. Le domaine monte à
+  3 fois la hauteur de l'ouvrage (10 m au moins). Pour le refuge (domaine
+  25 × 25 × 10 m) : cellules de 15 cm, 10 cm ou 7 cm.
+- Durée sur RTX 4060 portable : Aperçu environ 2 à 3 min, Normale environ 10 à
+  15 min jusqu'à « Moyenne stabilisée ». Les premières tendances se lisent après
+  une traversée.
+- Modèle : vent moyen dont la vitesse croît avec la hauteur (loi de puissance,
+  exposant 0,25 périurbain), vitesse de référence à 1,5 m ; turbulence d'entrée
+  de 20 % (valeur de réglage) ; sol glissant (le frottement du sol n'est pas
+  représenté, les obstacles sont rugueux) ; rappel doux vers le profil sur 120 m.
+  Validé sur un cube posé au sol : sillage de 1,9 fois sa hauteur (essais : 1,2
+  à 1,8), survitesse sur le toit 1,3.
+- En 3D, les briques restent plus fines que les cellules : l'air qui passe
+  entre elles est représenté par la bande poreuse, pas par des jets individuels.
+  Pour voir les jets dans les joints, utilisez le plan 2D « Ultra » à la hauteur
+  voulue (section 7) ; le zoom 3D sur un tronçon de mur viendra ensuite.
+- Le bilan intérieur n'a de sens qu'à des hauteurs où le mur existe : l'appli
+  le signale au-dessus de l'ouvrage ou dans un vide entre les modules.
+
+
+9. INTERFACE
+------------
+- À gauche, quatre onglets : Projet (liaison Grasshopper, sélection, import,
+  site), Vent (vent, fichier EPW), Calcul (domaine, plan 2D ou 3D, finesse),
+  Export (planche A3, image, DXF). À droite, toujours visibles : état du calcul,
+  affichage, bilan intérieur / extérieur, profil selon la hauteur, variantes.
+- Bandeau en haut de la vue : « Résultats provisoires » tant que la moyenne
+  n'est pas stabilisée, avec le temps restant.
+- Vues (barre d'outils), en fenêtre fixe :
+    Plan          le plan seul ;
+    Coupe         la coupe verticale seule, à l'échelle réelle, qui remplit la
+                  vue (en 3D : champ de vitesse ; en 2D : vitesse le long du trait) ;
+    Plan + coupe  le plan en haut, la coupe en bas ;
+    3D            le modèle, les deux coupes et des lignes de courant (glisser :
+                  tourner ; clic droit : déplacer ; molette : zoom), en calcul 3D.
+- Outil Coupe (C) : glissez de A vers B sur le plan pour placer la coupe ; double
+  clic avec l'outil : retour à la coupe dans l'axe du vent, par le centre.
+- Profil selon la hauteur (3D) : vitesse moyenne intérieure et pénétration, de
+  0,25 m au haut de l'ouvrage ; pointillé : coupe affichée.
+- Variantes : « Mémoriser cette variante » garde le champ affiché, le bilan et le
+  profil. La première devient la référence (« Réf. » pour en changer). L'affichage
+  « Écart » colore la différence de vitesse (bleu plus calme, rouge plus venté)
+  si domaine, grille et hauteur de coupe sont les mêmes ; le bilan donne les
+  écarts en points. Les variantes sont perdues au rechargement de la page :
+  exportez la planche A3 avant.
+- Planche A3 (onglet Export) : PNG 2480 × 1754 px (A3 à 150 dpi) avec titre,
+  carte, légende, coupe verticale, bilan, rose, profil, variantes et limites.
+
+10. SOLEIL ET CHALEUR
+---------------------
+Onglet « Soleil » (panneau de gauche) et bouton « Soleil » de la barre d'outils.
+
+Date et heure
+- Boutons : solstices (21 juin, 21 décembre), équinoxes (20 mars, 22 septembre), et, tirés du fichier EPW :
+  jour le plus chaud, jour le plus froid, été type et hiver type (jour moyen de la semaine type du fichier).
+- Heure : heure d'hiver du fichier EPW (UTC + 1 à Nantes). En été, l'heure affichée entre parenthèses est l'heure légale.
+- La même date et la même heure pilotent tout : soleil, ombres, coupe solaire, températures, carte.
+- « Animer la journée » fait avancer le soleil du lever au coucher.
+- « Vent du jour (moyenne du fichier météo) », cochée par défaut : à chaque changement de JOUR (pas d'heure),
+  le vent du calcul prend la direction moyenne de ce jour (moyenne vectorielle des 24 h, pondérée par la vitesse)
+  et sa vitesse moyenne, ramenée de 10 m à 1,5 m avec l'environnement choisi dans l'onglet Vent (α). Le calcul du
+  vent repart. Le vent envoyé par Grasshopper est alors ignoré. Décochée : vent à la main ou par Grasshopper.
+  Une remarque signale les jours où la direction tourne beaucoup (moyenne peu représentative).
+
+Vue Soleil (bouton « Soleil »)
+- En haut : le modèle 3D seul sur un sol, avec les ombres portées à l'heure choisie, la course du soleil
+  du jour (heures marquées) et celles des solstices et des équinoxes, les points cardinaux.
+  Glisser : tourner · clic droit : déplacer · molette : zoom · double clic : recadrer.
+- En bas : la coupe solaire avec les rayons du soleil selon sa hauteur. Au choix (onglet Soleil) :
+  sud → nord (les rayons de midi des solstices et équinoxes y sont exacts), dans l'axe du soleil
+  (hauteur vraie à chaque heure), ou le long du trait de coupe (outil C dans la vue Plan).
+  Traits : parties coupées · teinte claire : moitié de l'ouvrage vue au-delà · pointillés : rayons de midi
+  du 21 juin, des équinoxes et du 21 décembre, avec la distance de la tache de soleil au sol.
+- Les températures de l'heure sont écrites dans la coupe : air dehors, air après les joints, air intérieur,
+  ressenti à l'ombre, brique (face extérieure / intérieure), sol.
+
+Chaleur (onglet Soleil, « Chaleur : paroi et eau », et colonne de droite « Chaleur sur 24 h »)
+- Matériau de la paroi : terre cuite, terre crue, béton, pierre, bois (masse, chaleur massique, conductivité,
+  absorption du soleil, eau retenue), épaisseur des briques.
+- Goutte-à-goutte sur la façade : la brique mouillée s'évapore et se refroidit (la terre cuite boit l'eau et la
+  rend encore un moment après l'arrêt). Brumisation : l'air entrant se rapproche de la température humide.
+  Les deux sont bien plus efficaces par temps sec : regardez l'humidité (HR) du jour.
+- Brumisation : débit des buses (L/h, 40 par défaut) et humidité maximale (70 % par défaut). Les buses ne
+  traitent qu'une partie de l'air quand le mur est très ouvert : l'effet sur l'air intérieur reste alors faible.
+- Courbes sur 24 h : air dehors, air dedans, ressenti dehors au soleil, ressenti dedans à l'ombre, brique (moyenne
+  et face la plus chaude), sol, point de rosée de l'air intérieur. Bande verte : 20 à 26 °C. Trait cyan en bas :
+  heures où la brique ou le sol peuvent se couvrir de condensation. Clic sur le graphique : choisit l'heure.
+- Synthèse : températures et humidité à l'heure, maxima, nuit, heures de ressenti au-dessus de 26 °C, face de brique
+  la plus chaude, chaleur stockée par la paroi le jour et rendue la nuit, humidité intérieure et condensation,
+  eau évaporée (L/jour), renouvellement d'air, sol au soleil.
+- Affichage « Temp. » (colonne de droite) : carte de la température de l'air dans le plan, transportée par le vent
+  calculé (panache chaud ou frais derrière l'ouvrage). Une couleur par palier : le palier s'adapte à l'écart réel
+  de l'air dans la carte (0,1 · 0,2 · 0,25 · 0,5 ou 1 °C, au plus 8 paliers de chaque côté) et il est écrit sous la
+  légende. Crème = palier de l'air extérieur (case encadrée), bleus de plus en plus foncés à chaque palier plus frais,
+  jaunes puis oranges, rouges et violets à chaque palier plus chaud. La sonde donne la valeur au dixième.
+  L'air ne s'écarte souvent de l'extérieur que de quelques dixièmes de degré : c'est le résultat du modèle (le vent
+  traverse vite le mur), pas un défaut d'affichage.
+  Les briques prennent la couleur de leur face (sud plus chaude que nord).
+- Affichage « Ressenti » : le ressenti, cellule par cellule, à l'heure choisie. Il tient compte de l'air local,
+  de l'humidité, du vent local calculé, du soleil sur la personne (ombres du refuge à 1,1 m), de la part de ciel
+  visible et de la chaleur rayonnée par le sol et par la face de brique en vis-à-vis. Échelle fixe :
+  moins de 20 °C frais, 20 à 26 °C confort, 26 à 32 °C chaud, 32 à 38 °C très chaud, au-delà forte chaleur.
+  La sonde (survol du plan) donne l'air, le ressenti et la part de ciel visible du point.
+- « Été : juin à septembre » (colonne de droite, bouton « Calculer l'été », 2 à 5 s) : heures de ressenti
+  au-dessus de 26 et 32 °C, dehors et dedans, jour par jour ; avec l'eau : consommation, pluie recueillie
+  (pluie du fichier EPW, toit comme surface de collecte, rendement 80 %), niveau du réservoir. Quand il est vide,
+  le goutte-à-goutte et la brume s'arrêtent (trait rouge). Le bilan donne aussi la taille de réservoir qu'il
+  faudrait pour ne jamais manquer. Réservoir et surface de collecte : « auto » (20 cm d'eau sous le sol intérieur,
+  toit) ou à saisir.
+- Onglet Export : « Planche A3 soleil et chaleur » (avec l'été s'il a été calculé).
+- Onglet Export : « Planche d'analyse complète (A2) » (paysage, 150 dpi, PNG) : 1 à 4, cartes vitesse, température
+  de l'air, ressenti et UTCI recadrées sur l'ouvrage (carré de la « Zone Ressenti / UTCI », 10 m au moins), avec
+  légende, nord et échelle ; 5, soleil (vue 3D et coupe solaire) ; 6, températures sur 24 h ; 7, UTCI été et hiver
+  (heures par classe, dehors et dedans, si calculé) ; 8, bilan du vent et rose ; 9, chaleur et confort à l'heure ;
+  10, été (si calculé) ; limites du modèle. À faire après stabilisation du vent, avec la date et l'heure voulues,
+  l'UTCI été / hiver et l'été calculés ; Chrome en plein écran pour une vue soleil nette.
+
+Comment c'est calculé (à dire en rendu)
+- Soleil : position astronomique (formules NOAA) pour la latitude et la longitude du fichier EPW.
+  Ombres sur la vraie géométrie de Grasshopper ; taches de soleil sur le sol intérieur calculées à chaque heure.
+- Paroi en 8 orientations (N, NE, E… NO), chacune en deux demi-épaisseurs : soleil selon l'orientation de la face,
+  rayonnement vers le ciel (infrarouge du fichier EPW), convection selon le vent de l'heure, évaporation si
+  mouillée, inertie du matériau. Les faces intérieures rayonnent entre elles, vers le sol et vers le ciel ou le toit
+  (facteurs de forme d'un cylindre).
+- L'air entre par les joints du côté d'où vient le vent de l'heure et prend en partie la température de ces
+  briques-là (plus il passe lentement, plus il s'en approche). L'air intérieur est renouvelé au débit du calcul du
+  vent (bilan), proportionnel au vent de l'heure.
+- Goutte-à-goutte (révisé le 9 novembre 2026) : l'eau ruisselle sur toute la brique, faces extérieure ET intérieure
+  et parois des ouvertures. Les deux faces s'évaporent et se refroidissent ; l'air qui traverse des ouvertures
+  mouillées se refroidit en évaporant l'eau et s'humidifie d'autant. L'effet sur l'air reste faible quand le vent
+  traverse vite le mur (exemple, Nantes, 20 juillet à 15 h, air à 36 °C : air intérieur −0,5 °C) ; l'effet
+  principal est le rayonnement des briques fraîches sur les personnes (face intérieure 25 °C au lieu de 38 °C,
+  température radiante −4,5 °C, UTCI dedans −1,5 °C). Pour refroidir l'air lui-même, il faut ralentir l'air
+  (lames plus fermées, ouvertures plus petites) ou allonger les ouvertures (briques plus profondes).
+- Brique réelle (calée le 9 novembre 2026) : le composant CL-WIND Live mesure, dans Grasshopper, UNE brique (entrée
+  « brique », repère local : -Y face extérieure) et les lames posées (entrée « lames »). Il envoie la profondeur,
+  la section des ouvertures par coupes successives (effet Venturi : grande dehors, petite dedans), le pourtour
+  mouillé, et pour chaque lame sa direction autour du refuge, sa fermeture (0 = dans le sens de l'air, 1 = en
+  travers) et sa surface. Le refroidissement de l'air est alors calculé orientation par orientation : le débit
+  de l'orientation se partage entre ses ouvertures, la section de passage diminue quand les lames se ferment,
+  et les parois de l'ouverture plus les deux faces de la lame (terre cuite mouillée) échangent avec l'air.
+  Exemple (Nantes, 20 juillet à 15 h, goutte-à-goutte) : air refroidi de 1,2 °C par les briques au lieu de 0,3 °C
+  avec l'ancienne fente type, 1,6 °C lames toutes fermées. Sans les entrées « brique » et « lames », CL-WIND
+  garde la fente type (épaisseur de paroi et joint réglés dans l'onglet Soleil). La synthèse de l'onglet Soleil
+  affiche « Air refroidi par les briques » et la brique reçue.
+- Humidité : l'air intérieur a l'humidité de l'air entrant, plus l'eau évaporée dans les ouvertures et par les
+  faces intérieures mouillées, plus l'eau de la brume. Condensation possible quand la brique intérieure ou le sol
+  sont plus froids que le point de rosée.
+- Ressenti : température apparente de Steadman (1994) avec le rayonnement, calculée d'après la température
+  radiante moyenne d'une personne debout (ciel, sol, parois, soleil direct et diffus).
+- Trois jours de mise en régime avant la journée affichée ; l'été est calculé d'un seul tenant (pas de 10 min).
+- Hors modèle : rayonnement dans les joints entre briques voisines, stratification de l'air, brume ressentie
+  près des buses (l'air est supposé bien mélangé). Comparer des variantes
+  plutôt que lire des degrés absolus. Avec un mur aussi ouvert, l'air intérieur suit l'air extérieur : le gain du
+  refuge se lit surtout dans le ressenti (ombre) et avec l'eau (évaporation).
+
+11. ZOOM SUR UN PAN DE MUR (vue « Zoom mur »)
+---------------------------------------------
+Un petit calcul 3D à part, au centimètre environ, sur une boîte de 1 à 2 m de côté centrée sur un point du mur,
+du sol jusqu'au-dessus du toit. Chaque brique ou lame y est un obstacle plein : on voit l'air passer dans les
+joints (jets, décollements, sillage derrière chaque lame), au lieu de la bande poreuse du calcul d'ensemble.
+- Choisir le point : azimut autour du refuge (0 = nord, 90 = est), ou les boutons « Face au vent »,
+  « De côté », « Sous le vent ». Boîte : longueur le long du mur × profondeur à travers le mur, de 1 à 20 m
+  (10 × 5 m par défaut). La boîte suit le mur : en plan, le mur est à l'horizontale, l'extérieur en haut.
+  Plus la boîte est petite, plus les cellules sont fines : 10 × 5 m donne environ 3 cm (le mur reste bien
+  découpé, mais les joints de 2 cm ne sont pas vus un par un) ; 1,2 × 1,2 m donne environ 0,9 cm.
+- « Lancer le zoom » : découpage des briques (moins d'une seconde) puis calcul (1 à 3 min sur la NVIDIA pour
+  6 traversées). La finesse suit aussi le réglage « Finesse 3D » de l'onglet Vent.
+- À gauche : coupe horizontale à la hauteur choisie (curseur « coupe à »), nord en haut. À droite : coupe
+  verticale dans l'axe du vent. Couleurs : vitesse rapportée au vent libre à 1,5 m (même échelle que le plan),
+  briques en terre cuite, flèches : direction de l'air.
+- Chiffres (en bas) : part de vide dans l'épaisseur du mur à cette hauteur, vitesse moyenne et maximale dans
+  les joints, devant et derrière le mur, et débit d'air qui traverse le mur par m².
+- Le calcul principal est suspendu tant que la vue Zoom est affichée ; il reprend en revenant au plan.
+- Bouton « 3D » (à côté de « Coupes ») : vue 3D seule, sans les coupes. Briques et lames de la boîte, et lignes de
+  courant tracées dans le champ moyen relu au centimètre : on voit l'air se resserrer dans les joints et s'ouvrir
+  derrière le mur. Couleur = vitesse (même échelle que le plan). Les tirets avancent au ralenti (× 20), à la
+  vitesse de l'air : « Arrêter les tirets » les fige.
+  Départs : grille dans un plan face au vent, en amont du mur (±50 cm autour de la hauteur de coupe, ou toute la
+  hauteur), ou nappe à la hauteur de coupe ; un départ tous les 2,5, 5 (défaut) ou 10 cm. Les lignes sont
+  retracées pendant le calcul : elles sont provisoires tant que la moyenne n'est pas stabilisée (6 traversées).
+  Souris : glisser = tourner, clic droit = déplacer, molette = zoom ; « Recadrer » revient à la vue de départ.
+  Le zoom demande toute la carte graphique : fermez les rendus temps réel (D5, Enscape…) pendant le calcul.
+- Limites : l'air arrive sur la boîte avec la direction et le profil du vent libre ; le reste de l'ouvrage
+  (courbure, sillage de l'autre côté) n'est pas dans la boîte. Les éponges des bords (10 % du côté) ramènent
+  l'air vers le vent libre : regardez le centre de la boîte.
+
+12. IMPORT D'UN FICHIER RHINO .3DM (sans Rhino ni Grasshopper)
+-------------------------------------------------------------
+Onglet Plan, « Importer un plan ou un modèle » : choisir un fichier .3dm. Le modèle est traité comme un envoi
+de la liaison Grasshopper : coupe en plan, briques et lames en écran poreux, maillages 3D pour le calcul 3D,
+le soleil et le zoom sur un pan de mur.
+- Usage de chaque calque : volume plein (bâtiment, toit, réservoir), écran poreux (briques, lames, claustras),
+  mur (courbes, avec une épaisseur), arbre (points, cercles ou volumes), ignorer. En « auto », les petits
+  éléments (moins de 25 × 60 cm en plan) deviennent des écrans, le reste des volumes ; courbes et points sont
+  ignorés. Les calques cachés, de cotes, de textes, de sol ou de terrain sont ignorés d'office.
+- Unités lues dans le fichier (mm, cm, m…). Y = nord, comme dans Rhino. Les blocs sont éclatés.
+- Hauteur de coupe du plan : au-dessus du point le plus bas des volumes (1,5 m par défaut).
+- Maillages : ceux que Rhino enregistre avec les objets. Sans eux (fichier enregistré « petit »), les faces
+  sont remaillées dans la page : faces planes exactes, faces courbes par une grille qui ignore leurs découpes.
+- Volumes à fermer dans Rhino (Cap, Join) : un volume ouvert peut être mal rempli en 3D. Les surfaces plates
+  ouvertes (sol dessiné en surface) sont ignorées.
+- Si Grasshopper est relié, « Suivre Grasshopper » est décoché pour garder le modèle importé ; le recocher
+  revient à Grasshopper.
+- Bibliothèque de lecture : rhino3dm 8.35 (McNeel), copie dans js/lib/rhino3dm. Page ouverte par
+  double-clic sur index.html : elle est chargée depuis internet (cdn.jsdelivr.net).
+
+12b. EAU DU REFUGE (mise à jour du 9 novembre 2026)
+-------------------------------------------------
+- Paroi : une seule matière, la terre cuite absorbante (briques et lames). Brumisation retirée.
+- « Goutte-à-goutte qui ruisselle sur les tuiles » : la brique absorbante s'en imbibe et se refroidit en s'évaporant.
+- L'eau n'est présente qu'en été (1er juin – 30 septembre) : hors de cette période, ni goutte-à-goutte ni eau
+  dans les cuves (vidées, pas de gel).
+- Pilotage du goutte-à-goutte : « horaires » (de … h à … h) ou « sonde T / HR » : marche au-dessus de 26 °C et sous 65 %
+  d'humidité, arrêt sous 22 °C ou par pluie (planche 05 du kiosque V2).
+- Kiosque V2 (V2.gh) : composant CL-WIND Live sur le port 8766, application à ouvrir à http://127.0.0.1:8766/.
+- Toute l'eau qui ruisselle retourne aux cuves : seule l'eau évaporée est consommée (façade, brume, surface des cuves).
+- Cuves : « Eau libre des cuves » (8 m² pour les 11 cuves de V1.gh) ; leur surface s'évapore tout le temps (formule de
+  Penman, vent réduit de moitié sous la grille, eau à la température de l'air). Réservoir auto = cette surface × 45 cm,
+  à moitié plein au 1er juin. Bilan de l'été : eau évaporée, pluie recueillie, jours de cuves vides, réserve nécessaire.
+- La structure (rails et montants) et le tube d'arrosage arrivent de Grasshopper avec les briques : ils comptent comme
+  éléments d'écran (porosité du mur, ombres, 3D, zoom). Les buses, trop petites, ne sont pas envoyées.
+
+13. CONFORT UTCI : ÉTÉ ET HIVER, VENT RÉEL (onglet Soleil, « Confort UTCI »)
+--------------------------------------------------------------------------
+- UTCI = indice universel du climat thermique (°C équivalent), référence pour les espaces publics. Il tient compte de
+  l'air, de l'humidité, du vent et du rayonnement (soleil, ciel, sol, parois). Classes : sans stress de 9 à 26 °C ;
+  chaleur modérée 26–32, forte 32–38, très forte 38–46 ; froid léger 0–9, modéré −13–0, fort −27–−13.
+- 1. « Balayer les vents » : le calcul du vent tourne sur 16 directions, une moyenne stabilisée par direction
+  (quelques minutes). Pour chaque direction : renouvellement d'air, vitesse intérieure rapportée au vent libre.
+  « Géométrie balayée » : si les lames, le capot ou les panneaux changent avec la saison, balayer une fois avec la
+  géométrie d'été (choix « été ») et une fois avec celle d'hiver (choix « hiver »). Les tables sont gardées dans le
+  navigateur, une par application (port 8765 pour V1, 8766 pour V2).
+- « Vent réel heure par heure » : chaque heure prend la direction et la vitesse du fichier météo, et la table de sa
+  saison (juin–septembre : été ; décembre–février : hiver ; sinon : toute l'année).
+- 2. « Calculer l'UTCI été et hiver » : heure par heure, juin à septembre puis décembre à février. Dehors : au soleil
+  (rayonnement direct sur la personne), vent à 10 m. Dedans : air, humidité, rayonnement et vent intérieurs (vent
+  ramené à 10 m comme l'exige l'UTCI). Résultat : heures par classe de stress, dehors et dedans, et UTCI moyen.
+- Polynôme officiel (Bröde et al., 2012) repris de pythermalcomfort (licence MIT), vérifié à 1e-11 °C près.
+- Limites : dehors à l'ombre non calculé ; la cuve n'est pas suivie dans ce calcul (eau supposée disponible en été).
+- CARTE DE L'UTCI (Affichage, bouton « UTCI ») : l'UTCI cellule par cellule dans le plan, à la date et à l'heure
+  choisies dans l'onglet Soleil, coloré selon les 10 classes officielles. Mêmes entrées que la carte « Ressenti » :
+  air local (traceur de la paroi), humidité locale, vent local (rapport au vent libre × vent du fichier météo, à 10 m),
+  température radiante moyenne d'une personne debout (1,1 m) avec le soleil direct ou l'ombre, la part de ciel
+  visible, le sol et les parois. Dehors, au soleil comme à l'ombre du refuge ; dedans, sous le toit.
+  Le survol donne l'UTCI et sa classe ; l'onglet Soleil donne les moyennes (dedans, dehors au soleil, à l'ombre).
+- ZONE DE LA CARTE (Affichage, « Zone Ressenti / UTCI », 10 m par défaut) : le ressenti et l'UTCI ne sont calculés
+  et affichés que dans un carré de ce côté, centré sur l'ouvrage ; autour, fond gris neutre. 0 = toute la zone
+  calculée autour de l'ouvrage. Les moyennes de l'onglet Soleil portent sur ce carré.
+  Attendre que le vent soit stabilisé : tant que la moyenne n'est pas faite, la carte change.
+
+14. MATÉRIAUX DU SOL ET DU TOIT (onglet Soleil, « Chaleur : paroi et eau »)
+--------------------------------------------------------------------------
+- « Sol intérieur » : béton, Corten sur béton, pierre claire, granit, carreaux de terre cuite arrosables, platelage
+  mélèze, pavés enherbés, enrobé. Chaque sol a son absorption solaire α (albédo = 1 − α), son émissivité ε, sa masse
+  utile (profondeur atteinte par la chaleur en un jour) et sa liaison au sol de dessous (profondeur atteinte en une
+  semaine, sol de dessous à la moyenne de l'air sur 10 jours). Les carreaux de terre cuite sont mouillés par le
+  goutte-à-goutte ; le gazon évapore en été. Le sol renvoie aussi le soleil vers les personnes (1 − α).
+- « Toit » : Corten simple, zinc sans sous-face, EPDM noir sur bois, toit ventilé à sous-face bois, membrane blanche,
+  toiture végétalisée. Paramètres : absorption du dessus, part de son échauffement transmise à la sous-face,
+  émissivité de la sous-face (une sous-face métallique reflète la pièce plutôt que de rayonner sa chaleur).
+- La fiche sous chaque menu rappelle les valeurs. Valeurs typiques (EN ISO 10456, CIBSE Guide A, ASHRAE, LBNL) :
+  à remplacer par les fiches des fabricants.
+- Non pris en compte : la sensation au contact (effusivité affichée à titre indicatif), l'ombre portée du toit sur le
+  sol extérieur (le sol extérieur reste générique).
